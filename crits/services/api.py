@@ -1,9 +1,11 @@
 import json
-from django.core.urlresolvers import reverse
-from tastypie import authorization
-from tastypie.authentication import MultiAuthentication
-from tastypie.exceptions import BadRequest
 
+from django.core.urlresolvers import reverse
+
+from tastypie import authorization, fields
+from tastypie.authentication import MultiAuthentication
+
+from crits.services.analysis_result import AnalysisResult
 from crits.services.handlers import add_result, add_results, add_log, finish_task
 from crits.services.service import CRITsService
 from crits.core.api import CRITsApiKeyAuthentication, CRITsSessionAuthentication
@@ -118,3 +120,35 @@ class ServiceResource(CRITsAPIResource):
         if success:
             content['return_code'] = 0
         self.crits_response(content)
+
+
+class AnalysisResultResource(CRITsAPIResource):
+    """
+    Class to handle analysis results.
+
+    Currently supports GET .
+    """
+    results = fields.ListField(use_in='detail')
+    log = fields.ListField(use_in='detail')
+
+    class Meta:
+        object_class = AnalysisResult
+        allowed_methods = ('get',)
+        resource_name = "analysis_results"
+        authentication = MultiAuthentication(CRITsApiKeyAuthentication(),
+                                             CRITsSessionAuthentication())
+        authorization = authorization.Authorization()
+        serializer = CRITsSerializer()
+
+    def get_object_list(self, request):
+        """
+        Use the CRITsAPIResource to get our objects but provide the class to get
+        the objects from.
+
+        :param request: The incoming request.
+        :type request: :class:`django.http.HttpRequest`
+        :returns: Resulting objects in the specified format (JSON by default).
+        """
+        return super(AnalysisResultResource, self).get_object_list(request,
+                                                                   AnalysisResult,
+                                                                   False)

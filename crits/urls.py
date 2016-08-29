@@ -56,7 +56,7 @@ if settings.ENABLE_API:
     from crits.raw_data.api import RawDataResource
     from crits.samples.api import SampleResource
     from crits.screenshots.api import ScreenshotResource
-    from crits.services.api import ServiceResource
+    from crits.services.api import AnalysisResultResource, ServiceResource
     from crits.signatures.api import SignatureResource
     from crits.targets.api import TargetResource
     from crits.vocabulary.api import VocabResource
@@ -64,6 +64,7 @@ if settings.ENABLE_API:
     v1_api = Api(api_name='v1')
     v1_api.register(ActorResource())
     v1_api.register(ActorIdentifierResource())
+    v1_api.register(AnalysisResultResource())
     v1_api.register(BackdoorResource())
     v1_api.register(CampaignResource())
     v1_api.register(CertificateResource())
