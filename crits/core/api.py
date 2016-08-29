@@ -202,7 +202,6 @@ class CRITsSerializer(Serializer):
 
         options = options or {}
         username = options.get('username', None)
-
         # if this is a singular object, just return our internal to_json()
         # which handles the Embedded MongoEngine classes.
         if hasattr(data, 'obj'):
@@ -281,7 +280,11 @@ class CRITsSerializer(Serializer):
             for obj_ in objs:
                 if obj_.obj._has_method('sanitize'):
                     obj_.obj.sanitize(username=username, rels=True)
-                data['objects'].append(json.loads(obj_.obj.to_json()))
+                if hasattr(obj_, 'data'):
+                    # Tastypie has already filtered and rendered fields...
+                    data['objects'].append(obj_.data)
+                else:
+                    data['objects'].append(json.loads(obj_.obj.to_json()))
         data = self.to_simple(data, options)
         return data
 
