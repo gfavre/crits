@@ -1,11 +1,16 @@
 from django.core.urlresolvers import reverse
+from django.conf.urls import url
+from django.http import HttpResponseGone, HttpResponseServerError
+
 from tastypie import authorization
 from tastypie.authentication import MultiAuthentication
+from tastypie.utils import trailing_slash
 
-from crits.samples.sample import Sample
-from crits.samples.handlers import handle_uploaded_file
 from crits.core.api import CRITsApiKeyAuthentication, CRITsSessionAuthentication
 from crits.core.api import CRITsSerializer, CRITsAPIResource
+from crits.samples.sample import Sample
+from crits.samples.handlers import handle_uploaded_file
+from crits.services.api import AnalysisResultResource
 
 
 class SampleResource(CRITsAPIResource):
@@ -23,6 +28,27 @@ class SampleResource(CRITsAPIResource):
                                              CRITsSessionAuthentication())
         authorization = authorization.Authorization()
         serializer = CRITsSerializer()
+
+    def prepend_urls(self):
+        return [
+            url(r"^(?P<resource_name>%s)/(?P<pk>\w[\w/-]*)/analysis_results%s$" % (self._meta.resource_name,
+                                                                                   trailing_slash()),
+                self.wrap_view('get_analysis'), name="api_get_analysis_results"),
+        ]
+
+    def get_analysis(self, request, **kwargs):
+        try:
+            bundle = self.build_bundle(data={'pk': kwargs['pk']}, request=request)
+            obj = self.cached_obj_get(bundle=bundle, **self.remove_api_resource_names(kwargs))
+        except Sample.DoesNotExist:
+            return HttpResponseGone("Sample does not exist")
+        except Sample.MultipleObjectsReturned:
+            return HttpResponseServerError("More than one resource is found at this URI.")
+
+        analysis_resource = AnalysisResultResource()
+        request.GET = request.GET.copy()
+        request.GET['c-object_id'] = str(obj.pk)
+        return analysis_resource.get_list(request)
 
     def get_object_list(self, request):
         """
