@@ -1,6 +1,8 @@
+import json
 from django.core.urlresolvers import reverse
+from django.conf import settings
 from django.conf.urls import url
-from django.http import HttpResponseGone, HttpResponseServerError
+from django.http import HttpResponse, HttpResponseGone, HttpResponseServerError
 
 from tastypie import authorization
 from tastypie.authentication import MultiAuthentication
@@ -11,6 +13,7 @@ from crits.core.api import CRITsSerializer, CRITsAPIResource
 from crits.samples.sample import Sample
 from crits.samples.handlers import handle_uploaded_file
 from crits.services.api import AnalysisResultResource
+from crits.services.handlers import run_service
 
 
 class SampleResource(CRITsAPIResource):
@@ -32,9 +35,35 @@ class SampleResource(CRITsAPIResource):
     def prepend_urls(self):
         return [
             url(r"^(?P<resource_name>%s)/(?P<pk>\w[\w/-]*)/analysis_results%s$" % (self._meta.resource_name,
-                                                                                   trailing_slash()),
-                self.wrap_view('get_analysis'), name="api_get_analysis_results"),
+                                                                                   trailing_slash),
+                self.wrap_view('get_analysis'),
+                name="api_get_analysis_results"
+            ),
+            url(r"^(?P<resource_name>%s)/(?P<pk>\w[\w/-]*)/run/(?P<service_name>[\w/-]+)%s$" % (self._meta.resource_name,
+                                                                                                 trailing_slash),
+                self.wrap_view('run_service'),
+                name="api_run_service"
+            )
         ]
+
+    def run_service(self, request, **kwargs):
+        self.method_check(request, allowed=['post'])
+        self.is_authenticated(request)
+        self.throttle_check(request)
+        try:
+            obj = Sample.objects.get(pk=kwargs['pk'])
+        except Sample.DoesNotExist:
+            return HttpResponseGone("Sample does not exist")
+        except Sample.MultipleObjectsReturned:
+            return HttpResponseServerError("More than one resource is found at this URI.")
+
+        custom_config = request.POST
+        result = run_service(name=kwargs['service_name'],
+                             type_=obj._meta['crits_type'], id_=obj.id, obj=obj,
+                             user=request.user.username,
+                             execute=settings.SERVICE_MODEL,
+                             custom_config=custom_config)
+        return HttpResponse(json.dumps(result), content_type="application/json")
 
     def get_analysis(self, request, **kwargs):
         try:
